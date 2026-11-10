@@ -1,0 +1,41 @@
+@UmamusumeRag.Api_HostAddress = http://localhost:5033
+
+### Health check
+GET {{UmamusumeRag.Api_HostAddress}}/health
+Accept: application/json
+
+### List ingested documents
+GET {{UmamusumeRag.Api_HostAddress}}/api/documents
+Accept: application/json
+
+### Ingest everything under ./data (chunk -> embed -> store)
+POST {{UmamusumeRag.Api_HostAddress}}/api/documents/ingest
+
+### Re-ingest everything, even if unchanged
+POST {{UmamusumeRag.Api_HostAddress}}/api/documents/ingest?force=true
+
+### Ingest a custom folder
+POST {{UmamusumeRag.Api_HostAddress}}/api/documents/ingest?path=/absolute/path/to/docs
+
+### Upload a single file (multipart/form-data)
+POST {{UmamusumeRag.Api_HostAddress}}/api/documents/upload
+Content-Type: multipart/form-data; boundary=----UmamusumeRagBoundary
+
+------UmamusumeRagBoundary
+Content-Disposition: form-data; name="file"; filename="sample-umamusume-overview.md"
+Content-Type: text/markdown
+
+< ../../data/sample-umamusume-overview.md
+------UmamusumeRagBoundary--
+
+### Ask a question (embed -> retrieve -> generate)
+POST {{UmamusumeRag.Api_HostAddress}}/api/ask
+Content-Type: application/json
+
+{
+  "question": "What is the URA Finals?",
+  "topK": 5
+}
+
+### Delete a document (replace the id with one from GET /api/documents)
+DELETE {{UmamusumeRag.Api_HostAddress}}/api/documents/00000000-0000-0000-0000-000000000000

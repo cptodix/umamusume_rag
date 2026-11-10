@@ -1,0 +1,7 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/UmamusumeRag.Api/UmamusumeRag.Api.csproj" />
+    <Project Path="src/UmamusumeRag.Core/UmamusumeRag.Core.csproj" />
+    <Project Path="src/UmamusumeRag.Infrastructure/UmamusumeRag.Infrastructure.csproj" />
+  </Folder>
+</Solution>

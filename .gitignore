@@ -55,3 +55,6 @@ CodeCoverage/
 *.VisualState.xml
 TestResult.xml
 nunit-*.xml
+
+# RAG data: uploaded files are copies of user documents, don't commit them
+data/uploads/
