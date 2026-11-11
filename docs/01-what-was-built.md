@@ -95,8 +95,8 @@ lock it before adding an index (see the resources doc).
 | Decision | Why |
 |---|---|
 | Hand-rolled pipeline instead of Semantic Kernel / a RAG framework | Every stage stays visible and swappable — the point of the exercise |
-| `Microsoft.Extensions.AI` abstractions (`IChatClient`, `IEmbeddingGenerator`) | Provider-agnostic: LM Studio, OpenAI, anything OpenAI-compatible, via config only |
-| One OpenAI-compatible client for both chat and embeddings | LM Studio serves both; no second SDK to learn |
+| `Microsoft.Extensions.AI` abstractions (`IChatClient`, `IEmbeddingGenerator`) | Provider-agnostic: DeepInfra, LM Studio, OpenAI, anything OpenAI-compatible, via config only |
+| One OpenAI-compatible client for both chat and embeddings | The default provider (DeepInfra) serves both; no second SDK to learn |
 | EF Core owns storage; **no** `Microsoft.Extensions.VectorData` | Avoids two competing data layers over the same tables |
 | Raw SQL for the vector search instead of a LINQ distance function | Makes the `<=>` operator and the distance→similarity conversion explicit. `c.Embedding.CosineDistance(q)` is the equivalent LINQ form if you prefer it |
 | `float[]` in the domain entity + a value converter to `pgvector.Vector` | Keeps `UmamusumeRag.Core` free of database-specific types |
@@ -111,8 +111,11 @@ lock it before adding an index (see the resources doc).
 | `Rag:ChunkSize` | 800 | Too large → diluted embeddings; too small → missing context |
 | `Rag:ChunkOverlap` | 120 | Prevents boundary-straddling answers from becoming unfindable |
 | `Rag:TopK` | 5 | More context vs. more noise and tokens; overridable per request |
-| `Llm:EmbeddingModel` | `text-embedding-nomic-embed-text-v1.5` | Determines the vector space — **changing it invalidates all stored vectors** |
-| `Llm:ChatModel` | `qwen/qwen3-8b` | Answer quality and instruction-following (grounding) |
+| `Llm:EmbeddingModel` | `BAAI/bge-m3` | Determines the vector space — **changing it invalidates all stored vectors** |
+| `Llm:ChatModel` | `mistralai/Mistral-Small-24B-Instruct-2501` | Answer quality and instruction-following (grounding) |
+| `Rag:DocumentPrefix` | *(empty)* | Model-specific prefix for chunks (E5 `passage: `, nomic `search_document: `) |
+| `Rag:QueryPrefix` | *(empty)* | Matching prefix for questions (E5 `query: `, nomic `search_query: `) |
+| `Rag:EmbeddingDimensions` | *(null)* | Optional Matryoshka truncation (e.g. 512); re-ingest after changing |
 | `Rag:DataPath` | `../../data` | Where `/ingest` scans (relative to the API project dir) |
 
 ## What was verified
@@ -127,6 +130,7 @@ lock it before adding an index (see the resources doc).
 | Full RAG flow | API run against a mock OpenAI-compatible server: `/api/ask` returned an answer plus 5 ranked sources with snippets and scores |
 | Delete | `DELETE /api/documents/{id}` → `204`, chunks removed by cascade |
 | Failure mode | With no LLM endpoint running, ingest returns a per-file `Failed` result instead of throwing |
+| Prefixes + truncation | Provider received `passage: …` for chunks and `query: …` for the question, `dimensions=512`, and the DB stored 512-dim vectors |
 
 ## RAG gotchas discovered while building this
 

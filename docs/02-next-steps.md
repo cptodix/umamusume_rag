@@ -5,22 +5,31 @@
 ```sh
 docker compose up -d                                  # PostgreSQL + pgvector on :5433
 dotnet tool restore                                   # repo-local dotnet-ef
+
+# API key: kept outside the repo (user-secrets). DeepInfra is the default provider.
+dotnet user-secrets set "Llm:ApiKey" "<your DeepInfra token>" --project src/UmamusumeRag.Api
+
 dotnet run --project src/UmamusumeRag.Api             # applies migrations on startup (Development)
 ```
 
-Point the app at a model endpoint (LM Studio by default):
+`appsettings.json` already points at DeepInfra (`https://api.deepinfra.com/v1/openai`) with:
 
-1. In LM Studio, load **one chat model and one embedding model**, then start the local server
-   (default `http://localhost:1234/v1`).
-2. Get the exact model identifiers — the UI's Developer/API tab shows them, or:
+| Role | Model | Price (in/out per 1M) | Why this one |
+|---|---|---|---|
+| Embeddings | `BAAI/bge-m3` | $0.010 | 1024-dim, 8k ctx, multilingual, **no prefixes needed** |
+| Chat | `mistralai/Mistral-Small-24B-Instruct-2501` | $0.05 / $0.08 | cheap, strong instruction-following (grounding) |
 
-   ```sh
-   curl http://localhost:1234/v1/models
-   ```
+Cheaper chat alternatives on the same API: `mistralai/Mistral-Nemo-Instruct-2407` ($0.029/$0.030),
+`meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo` ($0.02/$0.04), `openai/gpt-oss-20b` ($0.03/$0.14).
 
-3. Put them in `src/UmamusumeRag.Api/appsettings.json` → `Llm:ChatModel` and
-   `Llm:EmbeddingModel`. (Using OpenAI or another provider instead: change `Llm:BaseUrl` and
-   `Llm:ApiKey` — nothing else.)
+**Local instead of cloud:** set `Llm:BaseUrl` to `http://localhost:1234/v1` (LM Studio) or
+`http://localhost:11434/v1` (Ollama), use any non-empty `Llm:ApiKey` (e.g. `lm-studio`), and put
+the model IDs you actually have into `Llm:ChatModel` / `Llm:EmbeddingModel`
+(`curl http://localhost:1234/v1/models` lists them).
+
+> The key never enters the repo: user-secrets live under
+> `~/.microsoft/usersecrets/<UserSecretsId>/secrets.json`. In CI/production use the
+> `Llm__ApiKey` environment variable instead.
 
 Then ingest and ask (VS Code REST Client / Rider: `src/UmamusumeRag.Api/UmamusumeRag.Api.http`):
 
@@ -87,11 +96,18 @@ long prompts), add "answer in one paragraph", or forbid quoting the context verb
 
 ### 3.4 Embedding model
 
-**Change:** `Llm:EmbeddingModel` (e.g. `nomic-embed-text`, `bge-*`, `e5-*`, `all-minilm`), then
-re-ingest with `?force=true`.
+**Change:** `Llm:EmbeddingModel`, then re-ingest with `?force=true`.
+
+On DeepInfra, useful comparisons: `BAAI/bge-m3` (1024d, the default), `Qwen/Qwen3-Embedding-8B`
+(4096d, top quality), `google/embeddinggemma-300m` (768d, cheapest). Locally: `nomic-embed-text`,
+`bge-*`, `e5-*`, `all-minilm`.
 
 **Observe:** retrieval hit rate on your baseline set, especially the **lexical** questions — those
 separate models most clearly. Also compare vector dimensions and ingest time.
+
+**Prefixes:** some models are trained with asymmetric prefixes and lose quality without them —
+E5 (`passage: ` / `query: `), nomic (`search_document: ` / `search_query: `). Set them via
+`Rag:DocumentPrefix` and `Rag:QueryPrefix`; BGE-M3 and Qwen3 need none (leave empty).
 
 **Gotcha:** stored vectors belong to the old model's space. Always `?force=true` after switching,
 and never mix models in one database.
@@ -184,6 +200,8 @@ caching of embeddings and answers, and background ingestion with progress report
 
 | Symptom | Likely cause |
 |---|---|
+| `Llm:ApiKey is not configured` at startup | Set it via user-secrets or the `Llm__ApiKey` env var |
+| `HTTP 401 invalid_api_key` | Wrong/expired key, or a local model pointed at the cloud BaseUrl |
 | `Failed ... Connection refused (localhost:1234)` | LM Studio's server isn't running |
 | Answers ignore your documents | Nothing ingested, or embeddings came from a different model than the question |
 | Ingest says `Skipped` after you edited the file | The extracted text hash didn't change (or it's genuinely identical) — use `?force=true` |

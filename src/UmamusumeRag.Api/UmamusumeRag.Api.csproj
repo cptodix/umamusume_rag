@@ -1,4 +1,10 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <PropertyGroup>
+    <!-- Local development secrets (Llm:ApiKey) live outside the repo.
+         Run inside src/UmamusumeRag.Api:  dotnet user-secrets set "Llm:ApiKey" "<token>" -->
+    <UserSecretsId>dda2efb4-da11-441f-8957-24e97ec12773</UserSecretsId>
+  </PropertyGroup>
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />

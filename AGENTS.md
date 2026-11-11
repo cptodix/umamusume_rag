@@ -42,6 +42,10 @@ C#, DI, EF Core basics or HTTP.
    is visible, hand-rolled code.
 9. **No silent behavior changes in ingest.** Per-file failures stay per-file
    (`IngestStatus.Failed`); a batch must not abort on one bad document.
+10. **Secrets never enter the repo.** `Llm:ApiKey` comes from user-secrets
+    (`dotnet user-secrets set "Llm:ApiKey" ...`) or the `Llm__ApiKey`
+    environment variable. Never write it into `appsettings*.json`, docs, tests
+    or commit history.
 
 ## Commands
 
@@ -62,6 +66,9 @@ dotnet ef database update -p src/UmamusumeRag.Infrastructure -s src/UmamusumeRag
 
 # run (Development auto-applies migrations)
 dotnet run --project src/UmamusumeRag.Api
+
+# provider key (never in the repo; user-secrets or Llm__ApiKey env var)
+dotnet user-secrets set "Llm:ApiKey" "<token>" --project src/UmamusumeRag.Api
 
 # inspect the index
 docker exec -it umamusume-rag-postgres psql -U postgres -d umamusume_rag
@@ -112,6 +119,8 @@ data/                               # source documents (repo root; Rag:DataPath 
 | Change top-K | `Rag:TopK` or per-request `{"topK": n}` |
 | Change similarity metric | SQL in `SearchChunksAsync`: `<=>` ↔ `<->` ↔ `<#>` |
 | Change prompt/grounding | `RagQueryService.SystemPrompt` + context assembly |
+| Add model prefixes (E5/nomic) | `Rag:DocumentPrefix` + `Rag:QueryPrefix`; re-ingest `?force=true` |
+| Truncate vectors (Matryoshka) | `Rag:EmbeddingDimensions` (e.g. 512); re-ingest |
 | Change chat model / temperature | `Llm:ChatModel` / `ChatOptions` in `AskAsync` |
 | Swap LLM provider | `Llm:BaseUrl` + `Llm:ApiKey` + model IDs (no code) |
 | Add chunk metadata | `Chunk` entity + `ChunkConfiguration` + migration |
@@ -159,6 +168,11 @@ data/                               # source documents (repo root; Rag:DataPath 
   `Failed` result instead.
 - `dotnet ef` requires `Microsoft.EntityFrameworkCore.Design` in the **startup**
   project (`UmamusumeRag.Api`), not just in Infrastructure.
+- The default provider is DeepInfra (`https://api.deepinfra.com/v1/openai`). A
+  `401 invalid_api_key` means `Llm:ApiKey` is missing/wrong; local LM Studio or
+  Ollama require overriding `Llm__BaseUrl` (and accept any non-empty key).
+- `Rag:DocumentPrefix`/`Rag:QueryPrefix` must mirror each other, and changing
+  them or `Rag:EmbeddingDimensions` requires a re-ingest.
 - EF Core is pinned explicitly in Infrastructure (10.0.15) so the Api project
   doesn't resolve the older version Npgsql's minimum dependency asks for.
 - Cosine similarity ignores magnitude — synthetic test vectors that differ only

@@ -128,7 +128,10 @@ Not learning material — just the pieces of this codebase that involve RAG-spec
 
 | Resource | Why |
 |---|---|
-| [LM Studio: OpenAI-compatible endpoints](https://lmstudio.ai/docs/app/api/endpoints/openai) | The default provider here: `/v1/chat/completions` and `/v1/embeddings` against local models |
+| [DeepInfra docs](https://docs.deepinfra.com) | The default provider here: OpenAI-compatible endpoint, model catalog, pricing |
+| [DeepInfra OpenAI-compatible API](https://deepinfra.com/docs/openai) | Exact request shapes for `/v1/embeddings` (incl. `dimensions`) and `/v1/chat/completions` |
+| [DeepInfra embeddings catalog](https://deepinfra.com/models/embeddings) | The list the default models (`BAAI/bge-m3`, …) come from |
+| [LM Studio: OpenAI-compatible endpoints](https://lmstudio.ai/docs/app/api/endpoints/openai) | Local alternative: `/v1/chat/completions` and `/v1/embeddings` against local models |
 | [LM Studio: OpenAI compatibility notes](https://lmstudio.ai/docs/developer/openai-compat) | Which parameters are supported/ignored — matters when a request silently behaves differently |
-| [Ollama: OpenAI compatibility](https://docs.ollama.com/api/openai-compatibility) | Drop-in alternative to LM Studio; same config keys, different `BaseUrl` |
+| [Ollama: OpenAI compatibility](https://docs.ollama.com/api/openai-compatibility) | Drop-in local alternative; same config keys, different `BaseUrl` |
 | [OpenAI API reference](https://platform.openai.com/docs/api-reference) | The wire format every "OpenAI-compatible" server imitates |

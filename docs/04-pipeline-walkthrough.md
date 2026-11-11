@@ -56,17 +56,20 @@ What happens:
    `UseNpgsql(..., o => o.UseVector())` — this teaches Npgsql/EF Core about the
    pgvector `vector` type.
 2. The `Rag` config section is bound into `RagOptions` (chunk size, overlap,
-   top-K, data path).
+   top-K, data path, embedding prefixes, optional dimension truncation).
 3. Loaders (step 1), the chunker (step 2), the repository (steps 4/6) and the
    two pipeline services are registered.
 4. `AddOpenAiCompatibleAi` registers `IChatClient` and `IEmbeddingGenerator`
-   against `Llm:BaseUrl` (steps 3, 5 and 8 all use these two instances).
+   against `Llm:BaseUrl` (steps 3, 5 and 8 all use these two instances). It
+   fails fast if `Llm:ApiKey` is missing — the key comes from user-secrets or
+   the `Llm__ApiKey` environment variable, never from the repo.
 5. In Development, `Program.cs` applies pending EF Core migrations.
 
 **Intervene here if you want to** replace a whole stage (new chunker, different
 store, OCR loader), add caching/decorators, or change DI lifetimes.
 
 **Config:** `src/UmamusumeRag.Api/appsettings.json` → `ConnectionStrings`, `Llm`, `Rag`.
+The API key is supplied separately: `dotnet user-secrets set "Llm:ApiKey" "<token>"`.
 
 ---
 
@@ -146,6 +149,8 @@ count matches and converts `ReadOnlyMemory<float>` → `float[]`.
 | Goal | Where |
 |---|---|
 | Try a different embedding model | `Llm:EmbeddingModel` (**then re-ingest with `?force=true`**) |
+| Add model-specific prefixes (E5/nomic) | `Rag:DocumentPrefix` — and `Rag:QueryPrefix` in step 5 |
+| Shrink vectors (Matryoshka truncation) | `Rag:EmbeddingDimensions` (e.g. 512) — re-ingest |
 | Batch size / parallelism / retries | the `GenerateAsync` call and the loop in `IngestDirectoryAsync` |
 | Local ONNX embeddings instead of HTTP | register a different `IEmbeddingGenerator` |
 
@@ -196,7 +201,8 @@ Entry point: `Api/Endpoints/AskEndpoints.cs` → `AskAsync`
 **File:** `Core/Services/RagQueryService.cs` → `AskAsync`
 
 `embeddingGenerator.GenerateAsync([question])` → one vector, using the same
-`Llm:EmbeddingModel` as step 3.
+`Llm:EmbeddingModel` as step 3. `Rag:QueryPrefix` is prepended here (it must
+mirror `Rag:DocumentPrefix`; both are empty for BGE-M3/Qwen3).
 
 **Intervene:** you generally shouldn't — except for *query transformation*
 (rewriting, multi-query, HyDE) which happens **before** this call. See
@@ -338,6 +344,9 @@ call. Re-running with `?force=true` re-embeds and replaces the rows.
 6. **Package versions live in `Directory.Packages.props`**, never in csproj files.
 7. **The `vector` column is dimension-less on purpose.** Lock it only when you
    add an ANN index.
+8. **Prefixes and dimensions are part of the embedding configuration.**
+   `Rag:DocumentPrefix` and `Rag:QueryPrefix` must mirror each other, and
+   changing either prefix or `Rag:EmbeddingDimensions` requires a re-ingest.
 
 Next: `05-glossary.md` for the vocabulary, `02-next-steps.md` for experiments,
 `03-rag-resources.md` for the reading list.

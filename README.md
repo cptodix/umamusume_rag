@@ -35,7 +35,7 @@ Suggested reading order if you are new to RAG: **04 → 05 → 02 → 01 → 03*
    (.md/.txt/.docx)   │           │
                       │           ▼
                       │     OpenAI-compatible endpoint
-                      │     (LM Studio / OpenAI / ...)
+                      │     (DeepInfra / LM Studio / ...)
                       ▼
               ┌────────────────────────┐
               │  PostgreSQL + pgvector │   chunks.embedding = vector
@@ -72,11 +72,8 @@ Suggested reading order if you are new to RAG: **04 → 05 → 02 → 01 → 03*
 
 - .NET 10 SDK
 - Docker (for the PostgreSQL + pgvector container)
-- An OpenAI-compatible endpoint — either:
-  - **LM Studio** (default): start the local server, load a chat model and an embedding
-    model, then put their identifiers into `Llm:ChatModel` / `Llm:EmbeddingModel`.
-  - **Online provider** (OpenAI, OpenRouter, ...): set `Llm:BaseUrl`, `Llm:ApiKey`,
-    and the model names in `appsettings.json`.
+- An OpenAI-compatible endpoint. **DeepInfra is the default** (cloud; needs an API key).
+  Local **LM Studio** or **Ollama** work too — same code, no key (any non-empty value).
 
 ## Quickstart
 
@@ -87,8 +84,10 @@ docker compose up -d
 # 2. Restore the repo-local dotnet-ef tool (first time only)
 dotnet tool restore
 
-# 3. Configure your LLM endpoint + model names
-#    -> src/UmamusumeRag.Api/appsettings.json  (Llm section)
+# 3. Provide your API key — it is kept out of the repo (user-secrets)
+dotnet user-secrets set "Llm:ApiKey" "<your DeepInfra token>" --project src/UmamusumeRag.Api
+#    Base URL and models are already configured for DeepInfra in appsettings.json.
+#    (LM Studio/Ollama instead? change Llm:BaseUrl and set any non-empty key.)
 
 # 4. Run the API (applies EF Core migrations automatically in Development)
 dotnet run --project src/UmamusumeRag.Api
@@ -131,13 +130,16 @@ OpenAPI document (Development): `http://localhost:5033/openapi/v1.json`
 | Key | Default | Notes |
 |---|---|---|
 | `ConnectionStrings:Postgres` | `localhost:5433/umamusume_rag` | Matches `compose.yaml` (host port 5433) |
-| `Llm:BaseUrl` | `http://localhost:1234/v1` | LM Studio default; swap for any OpenAI-compatible URL |
-| `Llm:ApiKey` | `lm-studio` | LM Studio ignores it; required by the client |
-| `Llm:ChatModel` | `qwen/qwen3-8b` | Replace with the identifier shown in LM Studio |
-| `Llm:EmbeddingModel` | `text-embedding-nomic-embed-text-v1.5` | Replace with your embedding model |
+| `Llm:BaseUrl` | `https://api.deepinfra.com/v1/openai` | Any OpenAI-compatible URL (LM Studio: `http://localhost:1234/v1`) |
+| `Llm:ApiKey` | *(empty)* | **Never commit it.** Set via user-secrets or the `Llm__ApiKey` env var |
+| `Llm:ChatModel` | `mistralai/Mistral-Small-24B-Instruct-2501` | Cheap + good instruction-following (see `docs/02-next-steps.md` §1) |
+| `Llm:EmbeddingModel` | `BAAI/bge-m3` | 1024-dim, 8k ctx, multilingual, no prefixes needed |
 | `Rag:ChunkSize` | `800` | Target chunk length (characters) |
 | `Rag:ChunkOverlap` | `120` | Repeated characters between neighboring chunks |
 | `Rag:TopK` | `5` | Chunks retrieved per question (overridable per request) |
+| `Rag:DocumentPrefix` | *(empty)* | Prepended to chunks before embedding (e.g. `passage: ` for E5/nomic) |
+| `Rag:QueryPrefix` | *(empty)* | Prepended to the question (e.g. `query: `) |
+| `Rag:EmbeddingDimensions` | *(null)* | Matryoshka truncation, e.g. `512` — re-ingest after changing |
 | `Rag:DataPath` | `../../data` | Folder scanned by `/ingest`, relative to the API project directory (the app content root) — so the default points at the repo's `data/` folder. Absolute paths also work. |
 
 ## Things to try next

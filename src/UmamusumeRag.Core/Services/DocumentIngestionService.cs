@@ -32,6 +32,7 @@ public sealed class DocumentIngestionService(
     ITextChunker chunker,
     IEmbeddingGenerator<string, Embedding<float>> embeddingGenerator,
     IDocumentRepository repository,
+    RagOptions options,
     ILogger<DocumentIngestionService> logger)
 {
     /// <summary>
@@ -98,8 +99,9 @@ public sealed class DocumentIngestionService(
             // The hash is over the *extracted text*, not the file bytes, so
             // re-saving a file without changing its content stays a no-op.
             //
-            // GOTCHA: after changing the embedding model or the chunker you MUST
-            //         pass force=true, otherwise this check keeps the old vectors.
+            // GOTCHA: after changing the embedding model, the chunker, the
+            //         prefixes or the dimensions you MUST pass force=true,
+            //         otherwise this check keeps the old vectors.
             var contentHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(loaded.Content)));
 
             var existing = await repository.FindBySourcePathAsync(fullPath, cancellationToken);
@@ -122,13 +124,38 @@ public sealed class DocumentIngestionService(
             // configured by Llm:EmbeddingModel — it MUST be the same model used
             // later to embed questions, otherwise the vector spaces don't match.
             //
+            // Rag:DocumentPrefix exists for models trained with asymmetric
+            // prefixes (E5 "passage: ", nomic "search_document: "). It stays
+            // empty for BGE-M3/Qwen3. Rag:EmbeddingDimensions optionally
+            // truncates the vector (Matryoshka) to shrink storage.
+            //
             // TWEAK: batching size (some providers cap inputs per request),
             //        retry/backoff, or a local ONNX embedding model instead.
             logger.LogInformation("Embedding {Count} chunks from {Path}", chunkTexts.Count, fullPath);
-            var embeddings = await embeddingGenerator.GenerateAsync(chunkTexts, cancellationToken: cancellationToken);
+
+            IEnumerable<string> embeddingTexts = options.DocumentPrefix.Length == 0
+                ? chunkTexts
+                : chunkTexts.Select(text => options.DocumentPrefix + text);
+
+            var embeddingOptions = options.EmbeddingDimensions is { } dimensions
+                ? new EmbeddingGenerationOptions { Dimensions = dimensions }
+                : null;
+
+            var embeddings = await embeddingGenerator.GenerateAsync(embeddingTexts, embeddingOptions, cancellationToken);
             if (embeddings.Count != chunkTexts.Count)
                 throw new InvalidOperationException(
                     $"Embedding provider returned {embeddings.Count} vectors for {chunkTexts.Count} chunks.");
+
+            // Fail loudly if the provider ignored the requested truncation —
+            // silently storing the native width would break every later search.
+            if (options.EmbeddingDimensions is { } expectedDimensions
+                && embeddings.Count > 0
+                && embeddings[0].Vector.Length != expectedDimensions)
+            {
+                throw new InvalidOperationException(
+                    $"Embedding provider returned {embeddings[0].Vector.Length} dimensions, but " +
+                    $"Rag:EmbeddingDimensions is {expectedDimensions}. This provider/model may not support truncation.");
+            }
 
             // ---- RAG step 4/8 · STORE ------------------------------------
             // Build the aggregate and hand it to the repository, which replaces

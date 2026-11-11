@@ -63,7 +63,20 @@ public sealed class RagQueryService(
         // The question must be embedded with the SAME model that embedded the
         // chunks (Llm:EmbeddingModel). A mismatch produces meaningless scores
         // without any error.
-        var queryEmbeddings = await embeddingGenerator.GenerateAsync([question], cancellationToken: cancellationToken);
+        //
+        // TWEAK: Rag:QueryPrefix must mirror Rag:DocumentPrefix (E5 "query: ").
+        //        Query transformation (rewriting, multi-query, HyDE) belongs
+        //        BEFORE this call — see docs/02-next-steps.md §3.8.
+        var embeddingText = options.QueryPrefix.Length == 0 ? question : options.QueryPrefix + question;
+
+        var embeddingOptions = options.EmbeddingDimensions is { } dimensions
+            ? new EmbeddingGenerationOptions { Dimensions = dimensions }
+            : null;
+
+        var queryEmbeddings = await embeddingGenerator.GenerateAsync(
+            [embeddingText],
+            embeddingOptions,
+            cancellationToken);
         var queryEmbedding = queryEmbeddings[0].Vector;
 
         // ---- RAG step 6/8 · RETRIEVE -------------------------------------

@@ -15,6 +15,13 @@ The vectors are meaningless for retrieval quality. This validates *plumbing*
 python3 tools/mock-openai/mock_openai.py --port 8123 --dim 768
 ```
 
+Add `--verbose` to log each request (input count, requested `dimensions`, and a
+preview of the first input) — useful for checking what the pipeline actually
+sends, e.g. that `Rag:DocumentPrefix` was applied.
+
+The mock honours the OpenAI `dimensions` parameter, so you can test
+`Rag:EmbeddingDimensions` (Matryoshka truncation) end-to-end.
+
 In another terminal, run the API pointed at it:
 
 ```sh

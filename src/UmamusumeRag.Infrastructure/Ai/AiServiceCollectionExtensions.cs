@@ -14,8 +14,9 @@ namespace UmamusumeRag.Infrastructure.Ai;
 //   step 5 (embed question)   IEmbeddingGenerator -> POST /v1/embeddings
 //   step 8 (generate answer)  IChatClient         -> POST /v1/chat/completions
 //
-// Because the base URL is configuration, the same code works against LM Studio,
-// Ollama, OpenAI, OpenRouter, vLLM, ... — no code change, only appsettings.
+// Because the base URL is configuration, the same code works against DeepInfra
+// (default), LM Studio, Ollama, OpenAI, OpenRouter, vLLM, ... — no code change,
+// only appsettings.
 //
 // TWEAK: switch providers in Llm:BaseUrl / Llm:ApiKey / Llm:*Model. For a
 //        non-OpenAI-compatible backend, register a different IChatClient /
@@ -26,21 +27,27 @@ public static class AiServiceCollectionExtensions
 {
     /// <summary>
     /// Registers <c>IChatClient</c> and <c>IEmbeddingGenerator</c> against any
-    /// OpenAI-compatible endpoint (LM Studio, OpenAI, ...).
+    /// OpenAI-compatible endpoint (DeepInfra, LM Studio, OpenAI, ...).
     /// </summary>
     public static IServiceCollection AddOpenAiCompatibleAi(this IServiceCollection services, IConfiguration configuration)
     {
         var options = configuration.GetSection("Llm").Get<LlmOptions>() ?? new LlmOptions();
 
-        // Fail fast: a missing model name would otherwise surface as a confusing
-        // 404 from the provider on the first ingest/ask.
+        // Fail fast with actionable messages instead of confusing provider errors.
+        if (string.IsNullOrWhiteSpace(options.ApiKey))
+            throw new InvalidOperationException(
+                "Llm:ApiKey is not configured. Keep it out of the repo:\n" +
+                "  dotnet user-secrets set \"Llm:ApiKey\" \"<your-token>\" --project src/UmamusumeRag.Api\n" +
+                "or set the Llm__ApiKey environment variable. " +
+                "LM Studio/Ollama accept any non-empty value, e.g. \"lm-studio\".");
+
         if (string.IsNullOrWhiteSpace(options.ChatModel))
             throw new InvalidOperationException("Llm:ChatModel is not configured (see appsettings.json).");
         if (string.IsNullOrWhiteSpace(options.EmbeddingModel))
             throw new InvalidOperationException("Llm:EmbeddingModel is not configured (see appsettings.json).");
 
         var openAiClient = new OpenAIClient(
-            new ApiKeyCredential(options.ApiKey),
+            new ApiKeyCredential(options.ApiKey.Trim()),
             new OpenAIClientOptions { Endpoint = new Uri(options.BaseUrl) });
 
         services.AddSingleton(openAiClient);
