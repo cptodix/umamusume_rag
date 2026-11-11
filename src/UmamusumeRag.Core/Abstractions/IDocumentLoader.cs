@@ -1,5 +1,15 @@
 namespace UmamusumeRag.Core.Abstractions;
 
+// ===== RAG step 1/8 · LOAD ==================================================
+// A loader turns one file format into plain text. Everything downstream
+// (chunk -> embed -> store) only ever sees text, so supporting a new format
+// means writing one more IDocumentLoader and registering it — nothing else
+// in the pipeline changes.
+//
+// TWEAK: add a loader in Infrastructure/Ingestion/ and register it in
+//        Infrastructure/ServiceCollectionExtensions.AddInfrastructure.
+// ============================================================================
+
 /// <summary>Text extracted from a source file, ready for chunking.</summary>
 public record LoadedDocument(string Title, string SourcePath, string Content);
 

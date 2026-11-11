@@ -10,9 +10,16 @@ chunking, embedding, storage, vector search, prompt construction, and generation
 
 | Doc | Contents |
 |---|---|
-| [`docs/01-what-was-built.md`](docs/01-what-was-built.md) | The RAG pipeline design, the decisions behind it, what was verified, and RAG gotchas |
-| [`docs/02-next-steps.md`](docs/02-next-steps.md) | Run it, build a baseline, then a concrete experiment roadmap (chunking → hybrid search → reranking → evaluation) |
+| [`docs/04-pipeline-walkthrough.md`](docs/04-pipeline-walkthrough.md) | **Start here** — every pipeline step, the exact file/method that runs it, and where to intervene |
+| [`docs/05-glossary.md`](docs/05-glossary.md) | AI/RAG vocabulary explained for a .NET developer (embeddings, cosine, ANN, RRF, …) |
+| [`docs/01-what-was-built.md`](docs/01-what-was-built.md) | Design decisions, verification results, RAG gotchas, deliberate gaps |
+| [`docs/02-next-steps.md`](docs/02-next-steps.md) | Run it, build a baseline, experiment roadmap, troubleshooting by symptom |
 | [`docs/03-rag-resources.md`](docs/03-rag-resources.md) | Curated RAG reading list: guides, papers, indexes, evaluation, implementations |
+| [`AGENTS.md`](AGENTS.md) | Operating guide for AI agents (and humans): invariants, commands, recipes, verification protocol |
+| [`docs/agent/teaching-notes.md`](docs/agent/teaching-notes.md) | Curriculum + diagnostic flow for an AI teacher |
+| [`tools/mock-openai/`](tools/mock-openai/README.md) | Fake OpenAI API so the full pipeline can be tested without a real model |
+
+Suggested reading order if you are new to RAG: **04 → 05 → 02 → 01 → 03**.
 
 ## Architecture
 

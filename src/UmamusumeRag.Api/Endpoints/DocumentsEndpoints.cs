@@ -4,6 +4,18 @@ using UmamusumeRag.Core.Services;
 
 namespace UmamusumeRag.Api.Endpoints;
 
+// ===== RAG write path · HTTP entry points ==================================
+// These endpoints are thin: they resolve the folder/file and delegate to
+// DocumentIngestionService (steps 1-4). All RAG logic lives in Core.
+//
+// Request flow:
+//   POST /api/documents/ingest  -> IngestAsync  -> DocumentIngestionService.IngestDirectoryAsync
+//   POST /api/documents/upload  -> UploadAsync  -> DocumentIngestionService.IngestFileAsync
+//
+// TWEAK: upload size limits, where uploads are stored, whether ingest runs in
+//        the background (return 202 + a job id) instead of inline.
+// ============================================================================
+
 public static class DocumentsEndpoints
 {
     public static IEndpointRouteBuilder MapDocumentsEndpoints(this IEndpointRouteBuilder app)
@@ -30,6 +42,13 @@ public static class DocumentsEndpoints
         return app;
     }
 
+    /// <summary>
+    /// RAG steps 1-4 for every supported file under a folder.
+    /// Query: ?path=&lt;folder&gt; (defaults to Rag:DataPath), ?force=true (re-embed unchanged files).
+    ///
+    /// GOTCHA: files with no matching loader (e.g. .pdf today) are skipped
+    /// silently — they do not appear in the response at all.
+    /// </summary>
     private static async Task<IResult> IngestAsync(
         DocumentIngestionService ingestion,
         RagOptions ragOptions,
@@ -52,6 +71,10 @@ public static class DocumentsEndpoints
         return Results.Ok(results);
     }
 
+    /// <summary>
+    /// RAG steps 1-4 for a single uploaded file (saved under data/uploads first).
+    /// force=true because an upload usually means "ingest this now".
+    /// </summary>
     private static async Task<IResult> UploadAsync(
         IFormFile file,
         DocumentIngestionService ingestion,
@@ -62,6 +85,9 @@ public static class DocumentsEndpoints
         if (file.Length == 0)
             return Results.BadRequest(new { error = "The uploaded file is empty." });
 
+        // TWEAK: Path.GetFileName strips directories (path traversal), but the
+        //        name is not otherwise sanitized. Add size/type checks or a
+        //        generated name if this ever faces untrusted users.
         var uploadsDirectory = Path.Combine(ResolveDataPath(ragOptions.DataPath, environment), "uploads");
         Directory.CreateDirectory(uploadsDirectory);
 
