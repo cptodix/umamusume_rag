@@ -103,6 +103,8 @@ lock it before adding an index (see the resources doc).
 | Chunks are embedded, documents are not | Standard "small-to-big"-free baseline: the retrieved unit *is* the prompted unit |
 | Content-hash skip | Avoids paying for embeddings on every re-run |
 | Similarity (not distance) in the API response | Higher = better matches intuition and makes thresholds meaningful |
+| MassTransit v8 mediator for endpoint → pipeline calls | Decouples HTTP from pipeline logic and makes the entry point swappable for a broker; v8 is pinned because v9+ is commercial |
+| EF Core LINQ for metadata, raw SQL only for the vector search | LINQ distance functions require `Pgvector.Vector` on the entity, which would leak the database type into Core |
 
 ## RAG-relevant configuration
 
@@ -131,6 +133,7 @@ lock it before adding an index (see the resources doc).
 | Delete | `DELETE /api/documents/{id}` → `204`, chunks removed by cascade |
 | Failure mode | With no LLM endpoint running, ingest returns a per-file `Failed` result instead of throwing |
 | Prefixes + truncation | Provider received `passage: …` for chunks and `query: …` for the question, `dimensions=512`, and the DB stored 512-dim vectors |
+| Mediator dispatch | Ingest / ask / upload endpoints ran through `IRequestClient<T>`; consumer log lines confirmed dispatch and responses |
 
 ## RAG gotchas discovered while building this
 

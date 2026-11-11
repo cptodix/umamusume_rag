@@ -24,12 +24,17 @@ public class PgVectorChunkRepository(AppDbContext db) : IDocumentRepository
 {
     public Task<Document?> FindBySourcePathAsync(string sourcePath, CancellationToken cancellationToken = default) =>
         db.Documents
+            .AsNoTracking() // read-only: used for the content-hash check and chunk count
             .Include(document => document.Chunks) // needed for the "unchanged" chunk count + potential in-place updates
             .FirstOrDefaultAsync(document => document.SourcePath == sourcePath, cancellationToken);
 
     // ---- RAG step 4/8 · STORE ----------------------------------------------
     // Replace-by-source-path. Deleting the old document cascades to its chunks,
     // so a re-ingest can never leave stale vectors behind.
+    //
+    // WHY tracked remove + insert in one SaveChanges instead of ExecuteDelete:
+    // both statements then run in one transaction, so a failed insert cannot
+    // leave the file unindexed.
     //
     // TWEAK: if you add chunk-level metadata (page, section, kind), it is
     //        persisted automatically through the Chunk entity.
@@ -45,19 +50,22 @@ public class PgVectorChunkRepository(AppDbContext db) : IDocumentRepository
         await db.SaveChangesAsync(cancellationToken);
     }
 
+    // Delete is a set-based LINQ operation: EF Core translates it to a single
+    // DELETE statement, and the database cascade removes the chunks.
+    // (The tracked alternative — FindAsync + Remove + SaveChanges — would first
+    // SELECT the row; this is one round trip.)
     public async Task<bool> RemoveAsync(Guid documentId, CancellationToken cancellationToken = default)
     {
-        var document = await db.Documents.FindAsync([documentId], cancellationToken);
-        if (document is null)
-            return false;
+        var deleted = await db.Documents
+            .Where(document => document.Id == documentId)
+            .ExecuteDeleteAsync(cancellationToken);
 
-        db.Documents.Remove(document);
-        await db.SaveChangesAsync(cancellationToken);
-        return true;
+        return deleted > 0;
     }
 
     public async Task<IReadOnlyList<DocumentSummary>> ListAsync(CancellationToken cancellationToken = default) =>
         await db.Documents
+            .AsNoTracking() // projection only, nothing is tracked
             .OrderBy(document => document.Title)
             .Select(document => new DocumentSummary(
                 document.Id,

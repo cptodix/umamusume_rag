@@ -1,19 +1,25 @@
+using MassTransit;
+using MassTransit.Mediator;
 using UmamusumeRag.Core.Abstractions;
+using UmamusumeRag.Core.Messaging;
 using UmamusumeRag.Core.Models;
-using UmamusumeRag.Core.Services;
 
 namespace UmamusumeRag.Api.Endpoints;
 
 // ===== RAG write path · HTTP entry points ==================================
-// These endpoints are thin: they resolve the folder/file and delegate to
-// DocumentIngestionService (steps 1-4). All RAG logic lives in Core.
+// Endpoints no longer call the pipeline services directly. They send a message
+// through the in-process MassTransit mediator; a consumer in Infrastructure
+// adapts it to DocumentIngestionService (RAG steps 1-4).
 //
-// Request flow:
-//   POST /api/documents/ingest  -> IngestAsync  -> DocumentIngestionService.IngestDirectoryAsync
-//   POST /api/documents/upload  -> UploadAsync  -> DocumentIngestionService.IngestFileAsync
+//   POST /api/documents/ingest -> IRequestClient<IngestDocuments> -> consumer
+//   POST /api/documents/upload -> IRequestClient<IngestDocument>  -> consumer
 //
-// TWEAK: upload size limits, where uploads are stored, whether ingest runs in
-//        the background (return 202 + a job id) instead of inline.
+// WHY: the HTTP layer stays free of pipeline logic, and the same messages can
+// later be sent over a real transport (RabbitMQ, Azure Service Bus) without
+// touching this file.
+//
+// TWEAK: upload size limits, where uploads are stored, or make ingest
+//        asynchronous (return 202 + a job id) by publishing instead of requesting.
 // ============================================================================
 
 public static class DocumentsEndpoints
@@ -50,7 +56,7 @@ public static class DocumentsEndpoints
     /// silently — they do not appear in the response at all.
     /// </summary>
     private static async Task<IResult> IngestAsync(
-        DocumentIngestionService ingestion,
+        IScopedMediator mediator,
         RagOptions ragOptions,
         IWebHostEnvironment environment,
         CancellationToken cancellationToken,
@@ -67,8 +73,20 @@ public static class DocumentsEndpoints
             });
         }
 
-        var results = await ingestion.IngestDirectoryAsync(directory, force, cancellationToken);
-        return Results.Ok(results);
+        try
+        {
+            var client = mediator.CreateRequestClient<IngestDocuments>();
+            var response = await client.GetResponse<IngestDocumentsResult>(
+                new IngestDocuments { Directory = directory, Force = force },
+                cancellationToken);
+
+            return Results.Ok(response.Message.Results);
+        }
+        catch (RequestException ex)
+        {
+            // Consumer exceptions propagate back through the mediator.
+            return Results.Problem(ex.Message);
+        }
     }
 
     /// <summary>
@@ -77,7 +95,7 @@ public static class DocumentsEndpoints
     /// </summary>
     private static async Task<IResult> UploadAsync(
         IFormFile file,
-        DocumentIngestionService ingestion,
+        IScopedMediator mediator,
         RagOptions ragOptions,
         IWebHostEnvironment environment,
         CancellationToken cancellationToken)
@@ -97,10 +115,21 @@ public static class DocumentsEndpoints
             await file.CopyToAsync(stream, cancellationToken);
         }
 
-        var result = await ingestion.IngestFileAsync(targetPath, force: true, cancellationToken);
-        return result.Status == IngestStatus.Failed
-            ? Results.Problem(result.Message)
-            : Results.Ok(result);
+        try
+        {
+            var client = mediator.CreateRequestClient<IngestDocument>();
+            var response = await client.GetResponse<IngestResult>(
+                new IngestDocument { FilePath = targetPath, Force = true },
+                cancellationToken);
+
+            return response.Message.Status == IngestStatus.Failed
+                ? Results.Problem(response.Message.Message)
+                : Results.Ok(response.Message);
+        }
+        catch (RequestException ex)
+        {
+            return Results.Problem(ex.Message);
+        }
     }
 
     private static async Task<IResult> ListAsync(IDocumentRepository repository, CancellationToken cancellationToken) =>

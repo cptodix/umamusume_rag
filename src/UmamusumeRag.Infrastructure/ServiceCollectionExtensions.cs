@@ -6,6 +6,7 @@ using UmamusumeRag.Core.Models;
 using UmamusumeRag.Core.Services;
 using UmamusumeRag.Infrastructure.Ai;
 using UmamusumeRag.Infrastructure.Ingestion;
+using UmamusumeRag.Infrastructure.Messaging;
 using UmamusumeRag.Infrastructure.Persistence;
 
 namespace UmamusumeRag.Infrastructure;
@@ -64,6 +65,10 @@ public static class ServiceCollectionExtensions
 
         // Steps 3, 5, 8: chat + embedding clients (LM Studio, OpenAI, ...).
         services.AddOpenAiCompatibleAi(configuration);
+
+        // Entry points: HTTP endpoints send commands/queries through the
+        // in-process MassTransit mediator instead of resolving services directly.
+        services.AddRagMessaging();
 
         return services;
     }

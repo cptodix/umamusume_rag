@@ -21,6 +21,17 @@ chunking, embedding, storage, vector search, prompt construction, and generation
 
 Suggested reading order if you are new to RAG: **04 → 05 → 02 → 01 → 03**.
 
+## Agent tooling
+
+| Item | What it is |
+|---|---|
+| `.opencode/skills/` | The `dotnet` plugin skills from [dotnet/skills](https://github.com/dotnet/skills) (MIT): `csharp-expert`, `csharp-refactoring`, `dotnet-breaking-changes`, `msbuild`, `setup-local-sdk` |
+| `opencode.json` | Declares the Roslyn C# language server (`dotnet dnx roslyn-language-server --stdio`) |
+
+Note: OpenCode V2 currently **accepts but does not run** LSP configuration (no LSP
+runtime yet), so no diagnostics are produced from it. Use `dotnet build` for
+diagnostics until that ships — the config is kept so it activates automatically later.
+
 ## Architecture
 
 ```
@@ -53,8 +64,12 @@ Suggested reading order if you are new to RAG: **04 → 05 → 02 → 01 → 03*
 | Project | Purpose |
 |---|---|
 | `src/UmamusumeRag.Api` | Minimal API endpoints, configuration, DI wiring |
-| `src/UmamusumeRag.Core` | Entities, abstractions, chunker, ingestion + query pipeline (no DB/AI SDK dependencies) |
-| `src/UmamusumeRag.Infrastructure` | EF Core + pgvector storage, document loaders, OpenAI-compatible AI clients |
+| `src/UmamusumeRag.Core` | Entities, abstractions, chunker, ingestion + query pipeline, mediator message contracts (no DB/AI SDK dependencies) |
+| `src/UmamusumeRag.Infrastructure` | EF Core + pgvector storage, document loaders, MassTransit consumers, OpenAI-compatible AI clients |
+
+HTTP endpoints dispatch commands/queries through an **in-process MassTransit mediator**
+(v8, Apache-2.0 — no broker required). The same messages can later be sent over
+RabbitMQ/Azure Service Bus by swapping the registration; the pipeline code stays put.
 
 ## How the RAG pipeline maps to code
 

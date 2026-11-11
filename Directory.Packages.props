@@ -19,6 +19,10 @@
     <PackageVersion Include="OpenAI" Version="2.15.0" />
   </ItemGroup>
 
+  <ItemGroup Label="Messaging (v8 = Apache-2.0; v9+ is commercial)">
+    <PackageVersion Include="MassTransit" Version="8.5.12" />
+  </ItemGroup>
+
   <ItemGroup Label="Document ingestion">
     <PackageVersion Include="DocumentFormat.OpenXml" Version="3.5.1" />
   </ItemGroup>

@@ -1,10 +1,13 @@
+using MassTransit;
+using MassTransit.Mediator;
+using UmamusumeRag.Core.Messaging;
 using UmamusumeRag.Core.Models;
-using UmamusumeRag.Core.Services;
 
 namespace UmamusumeRag.Api.Endpoints;
 
 // ===== RAG read path · HTTP entry point ====================================
-// POST /api/ask -> RagQueryService.AskAsync (steps 5-8).
+// POST /api/ask sends an AskQuestion message through the in-process MassTransit
+// mediator; AskQuestionConsumer adapts it to RagQueryService (RAG steps 5-8).
 //
 // Request:  { "question": "...", "topK": 5 }   (topK optional)
 // Response: { "answer": "...", "sources": [ { index, documentTitle,
@@ -32,15 +35,25 @@ public static class AskEndpoints
 
     private static async Task<IResult> AskAsync(
         AskRequest request,
-        RagQueryService rag,
+        IScopedMediator mediator,
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(request.Question))
             return Results.BadRequest(new { error = "The 'question' field must not be empty." });
 
-        // TWEAK: per-request TopK override — handy for experiments without
-        //        restarting the app or editing appsettings.
-        var response = await rag.AskAsync(request.Question, request.TopK, cancellationToken);
-        return Results.Ok(response);
+        try
+        {
+            var client = mediator.CreateRequestClient<AskQuestion>();
+            var response = await client.GetResponse<AskResponse>(
+                new AskQuestion { Question = request.Question, TopK = request.TopK },
+                cancellationToken);
+
+            return Results.Ok(response.Message);
+        }
+        catch (RequestException ex)
+        {
+            // Consumer exceptions (e.g. provider 401/timeout) propagate back here.
+            return Results.Problem(ex.Message);
+        }
     }
 }

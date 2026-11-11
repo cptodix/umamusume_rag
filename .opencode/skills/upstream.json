@@ -1,0 +1,8 @@
+{
+  "source": "https://github.com/dotnet/skills",
+  "plugin": "dotnet",
+  "version": "0.2.6",
+  "license": "MIT",
+  "vendoredAt": "2026-11-11",
+  "note": "Skills copied from plugins/dotnet/skills. Update by re-copying that directory and bumping version/vendoredAt."
+}

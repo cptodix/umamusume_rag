@@ -1,0 +1,19 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "lsp": {
+    "csharp": {
+      "command": [
+        "dotnet",
+        "dnx",
+        "roslyn-language-server",
+        "--yes",
+        "--prerelease",
+        "--",
+        "--stdio",
+        "--daemon-mode",
+        "--autoLoadProjects"
+      ],
+      "extensions": [".cs"]
+    }
+  }
+}

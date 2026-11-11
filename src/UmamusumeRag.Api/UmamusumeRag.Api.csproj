@@ -7,6 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="MassTransit" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" />
     <!-- Required by the EF Core tools (dotnet ef) at design time. -->
     <PackageReference Include="Microsoft.EntityFrameworkCore.Design">

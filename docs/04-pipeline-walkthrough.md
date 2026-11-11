@@ -59,11 +59,13 @@ What happens:
    top-K, data path, embedding prefixes, optional dimension truncation).
 3. Loaders (step 1), the chunker (step 2), the repository (steps 4/6) and the
    two pipeline services are registered.
-4. `AddOpenAiCompatibleAi` registers `IChatClient` and `IEmbeddingGenerator`
+4. `AddRagMessaging()` registers the in-process MassTransit mediator and the
+   consumers that adapt messages to those services (no broker involved).
+5. `AddOpenAiCompatibleAi` registers `IChatClient` and `IEmbeddingGenerator`
    against `Llm:BaseUrl` (steps 3, 5 and 8 all use these two instances). It
    fails fast if `Llm:ApiKey` is missing — the key comes from user-secrets or
    the `Llm__ApiKey` environment variable, never from the repo.
-5. In Development, `Program.cs` applies pending EF Core migrations.
+6. In Development, `Program.cs` applies pending EF Core migrations.
 
 **Intervene here if you want to** replace a whole stage (new chunker, different
 store, OCR loader), add caching/decorators, or change DI lifetimes.
@@ -77,7 +79,13 @@ The API key is supplied separately: `dotnet user-secrets set "Llm:ApiKey" "<toke
 
 HTTP: `POST /api/documents/ingest?path=&force=`
 Entry point: `Api/Endpoints/DocumentsEndpoints.cs` → `IngestAsync`
+→ MassTransit mediator (`Core/Messaging/IngestDocuments`)
+→ `Infrastructure/Messaging/IngestDocumentsConsumer`
 → `Core/Services/DocumentIngestionService.cs`
+
+The endpoint resolves the folder and sends an `IngestDocuments` message; the
+consumer adapts it to the pipeline. A consumer exception propagates back through
+the mediator and becomes a `ProblemDetails` response.
 
 `IngestDirectoryAsync` enumerates the folder recursively and keeps files that
 some registered loader accepts. Then it calls `IngestFileAsync` once per file.
@@ -194,6 +202,8 @@ chunks:    Id | DocumentId (FK, cascade) | ChunkIndex | Content | Embedding (vec
 
 HTTP: `POST /api/ask` with `{ "question": "...", "topK": 5 }`
 Entry point: `Api/Endpoints/AskEndpoints.cs` → `AskAsync`
+→ MassTransit mediator (`Core/Messaging/AskQuestion`)
+→ `Infrastructure/Messaging/AskQuestionConsumer`
 → `Core/Services/RagQueryService.cs` → `AskAsync`
 
 ## Step 5 — Embed the question

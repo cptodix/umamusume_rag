@@ -46,6 +46,9 @@ C#, DI, EF Core basics or HTTP.
     (`dotnet user-secrets set "Llm:ApiKey" ...`) or the `Llm__ApiKey`
     environment variable. Never write it into `appsettings*.json`, docs, tests
     or commit history.
+11. **MassTransit stays on 8.x.** 8.5.12 is Apache-2.0; v9+ requires a commercial
+    license. The mediator is in-process only (no broker); keep it that way unless
+    the task is explicitly about a transport.
 
 ## Commands
 
@@ -74,16 +77,34 @@ dotnet user-secrets set "Llm:ApiKey" "<token>" --project src/UmamusumeRag.Api
 docker exec -it umamusume-rag-postgres psql -U postgres -d umamusume_rag
 ```
 
+## Agent tooling (this project)
+
+- **Skills:** `.opencode/skills/` contains the vendored `dotnet` plugin skills from
+  [dotnet/skills](https://github.com/dotnet/skills) (MIT; see `.opencode/skills/LICENSE`
+  and `upstream.json`): `csharp-expert`, `csharp-refactoring`,
+  `dotnet-breaking-changes`, `msbuild`, `setup-local-sdk`. OpenCode discovers them
+  automatically; update by re-copying `plugins/dotnet/skills/` from upstream and
+  bumping `upstream.json`.
+- **LSP:** `opencode.json` declares the Roslyn C# language server
+  (`dotnet dnx roslyn-language-server … --stdio`), the same launch command the
+  upstream plugin uses. **OpenCode V2 does not yet run LSP** — the config is
+  validated and preserved, but no server starts and no diagnostics are returned
+  (see the V2 LSP docs). Until the V2 LSP runtime ships, treat the compiler as the
+  diagnostics source: run `dotnet build` (0 warnings is the gate) and
+  `dotnet test` when tests exist.
+
 ## Repository map
 
 ```
 src/UmamusumeRag.Core/              # domain + pipeline (no DB/AI SDK deps)
   Abstractions/                     # IDocumentLoader, ITextChunker, IDocumentRepository
   Entities/                         # Document, Chunk (float[] embedding)
+  Messaging/                        # mediator contracts: IngestDocuments, IngestDocument, AskQuestion
   Models/                           # RagOptions, API contracts
   Services/                         # RecursiveTextChunker, DocumentIngestionService, RagQueryService
 src/UmamusumeRag.Infrastructure/    # implementations
   Ingestion/                        # TextDocumentLoader (.txt/.md), DocxDocumentLoader (.docx)
+  Messaging/                        # MassTransit consumers + AddRagMessaging()
   Persistence/                      # AppDbContext, configs, migrations, PgVectorChunkRepository
   Ai/                               # OpenAI-compatible IChatClient + IEmbeddingGenerator
   ServiceCollectionExtensions.cs    # the DI wiring hub
@@ -96,6 +117,10 @@ data/                               # source documents (repo root; Rag:DataPath 
 ```
 
 ## Pipeline map (the canonical 8 steps)
+
+HTTP endpoints dispatch commands/queries through an in-process MassTransit
+mediator (`Core/Messaging` contracts → `Infrastructure/Messaging` consumers)
+before reaching the pipeline services below.
 
 | # | Step | File |
 |---|---|---|
@@ -129,6 +154,8 @@ data/                               # source documents (repo root; Rag:DataPath 
 | Add reranking | raise `topK`, re-score in `RagQueryService` before prompt assembly |
 | Streaming answers | `IChatClient.GetStreamingResponseAsync` + SSE endpoint |
 | Evaluation harness | new script/endpoint using the `sources` array (hit rate@k, MRR) |
+| Add a pipeline operation | message in `Core/Messaging` + consumer in `Infrastructure/Messaging` + register in `AddRagMessaging` + endpoint |
+| Swap mediator for a broker | replace `AddMediator` with `AddMassTransit` + transport; messages/consumers stay |
 
 ## Verification protocol (after any change)
 
